@@ -13,14 +13,17 @@ First things first: prepare a virtual machine (Ubuntu is preferred) and **clone 
 - Python distribution packages: <code>sudo apt install python3</code>
 - Golang (last version): https://go.dev/doc/install
 - Make sure that you are running cgroups v2 and using runc instead of crun as ociRuntime. Check this issue in case https://github.com/checkpoint-restore/criu/issues/2000
-- Remember that Criu is a kernel level tool, and **requires root permissions** in order to checkpoint and restore. 
+
+Remember that Criu is a kernel level tool, and **requires root permissions** in order to checkpoint and restore. 
 ### Step 2: Set the config.ini
 Go to the main folder, set the config.ini file content to have correct VMs addresses and run:
 > make
+
 This will create the image of the container that will be migrated.
 ### Step 3: Initialize the demo
 Move the main folder onto both VMs, and run the script:
 >./initializeDemo.sh
+
 The command will load the image created in the previous step on the VMs (remember to use root privileges).
 ### Step 4: Start
 Respectively on host A and host B run from the main folder:
