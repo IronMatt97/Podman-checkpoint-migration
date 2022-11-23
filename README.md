@@ -33,6 +33,8 @@ Respectively on host A and host B run from the main folder:
 
 Doing this, on machine A a container will be spawned, differently from the machine B.
 At this point, from the client on the base machine you can communicate with the external hosts and proceed with the prompt.
+> go run client/client.go
+
 Basically:
 - Insert a number
 - Request migration (before 3 seconds)
