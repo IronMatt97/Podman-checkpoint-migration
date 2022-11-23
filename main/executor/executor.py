@@ -1,4 +1,5 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import requests
 import time
 import json
 import sys
@@ -21,27 +22,30 @@ class Unbuffered(object):
 class Executor(BaseHTTPRequestHandler):
 
     def do_POST(self):
+        print("A request has been received.")
         content_length = int(self.headers['Content-Length']) 
         post_data = self.rfile.read(content_length) 
-        number = int((post_data.decode('utf-8'))[1:2])
-        print("Before wait")
+        message = post_data.decode('utf-8').split("|")
+        fallbackNode=message[0][1:len(message[0])]  
+        number=int(message[1][:len(message[1])-1])
+        print("FallbackNode acquired: ",fallbackNode,"\nNumber to increment= ",number)
         time.sleep(3)
-        print("After wait")
         result = number+1
-        print("Incremented variable")
+        print("Result: ",result)
         try:
             self.send_response(200)
-            print("Response sent")
             self.send_header("Content-type", "application/json")
-            print("Header sent")
             self.end_headers()
-            print("Headers end sent")
             self.wfile.write(bytes(json.dumps(result), "utf-8"))
-            print("POST completed.")
+            print("Response sent.")
         except:
-            print("Oops!", sys.exc_info()[0], "occurred.")
-            #TODO: reconnect to the new node manually to communicate the result.
-            #Exception class: <class 'ConnectionResetError'>
+            #except ConnectionResetError
+            print(sys.exc_info()[0], "has occurred: a migration just happened.")
+            self.close_connection
+            payload = str(result)
+            requests.post('http://'+ fallbackNode +':8080/receiveMigrationRes', json = payload)
+            print("Response sent.")
+           
 
 if __name__ == "__main__":
     sys.stdout = Unbuffered(sys.stdout)
@@ -55,3 +59,4 @@ if __name__ == "__main__":
 
     webServer.server_close()
     print("\nServer stopped.\n")
+    

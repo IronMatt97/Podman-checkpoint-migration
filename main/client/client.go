@@ -10,10 +10,12 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"gopkg.in/ini.v1"
 )
 
-var nodeAddressA = "192.168.56.106"
-var nodeAddressB = "192.168.56.111"
+var nodeAddressA string
+var nodeAddressB string
 
 func main() {
 
@@ -38,9 +40,16 @@ func main() {
 
 func initializeDemo() {
 	//Send B address to node A
+	fmt.Println("Client initialized.\n\tReading ini file...")
+	cfg, err := ini.Load("config.ini")
+	errorCheck(err)
+	nodeAddressA = cfg.Section("addresses").Key("nodeA").String()
+	nodeAddressB = cfg.Section("addresses").Key("nodeB").String()
+	fmt.Println("\t...Address acquired.\n\tContacting the remote node...")
 	requestJSON, _ := json.Marshal(nodeAddressB)
 	response, err := http.Post("http://"+nodeAddressA+":8080/acquireNodeIp", "application/json", bytes.NewBuffer(requestJSON))
 	errorRespCheck(err, "Failed to contact the remote node.", response.Status)
+	fmt.Println("Client successfully initialized.")
 }
 
 func incrementNumber() {

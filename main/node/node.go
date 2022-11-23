@@ -32,6 +32,7 @@ func main() {
 	http.HandleFunc("/migrate", migrate)
 	http.HandleFunc("/query", getResult)
 	http.HandleFunc("/restore", completeMigration)
+	http.HandleFunc("/receiveMigrationRes", receiveResult)
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		fmt.Printf("Server initialization error.\n")
@@ -115,13 +116,21 @@ func restoreExecution(fileName string) {
 	fmt.Println("Container restarted. Migration completed.")
 }
 
+func receiveResult(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("A migrated container just sent a result.")
+	requestBody, _ := ioutil.ReadAll(r.Body)
+	json.Unmarshal([]byte(requestBody), &resultNumber)
+	fmt.Println("The result is ready: " + resultNumber)
+}
+
 func getResult(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("A result has been queried.")
 	json.NewEncoder(w).Encode(string(resultNumber))
 }
 
 func submitAsyncRequest() {
-	requestJSON, _ := json.Marshal(requestNumber)
+	// Send fallback ip in case of migration, and the number to actually increment
+	requestJSON, _ := json.Marshal(otherNodeIP + "|" + requestNumber)
 	response, err := http.Post("http://"+containerAddress+":8080", "application/json", bytes.NewBuffer(requestJSON))
 	errorRespCheck(err, "Failed to send request", response.Status)
 	result, _ := ioutil.ReadAll(response.Body)
