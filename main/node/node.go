@@ -24,7 +24,7 @@ var requestNumber = ""
 
 func main() {
 	if spawnExecutor() {
-		containerAddress = initializeExecutor() //If -executor is specified
+		containerAddress = initializeExecutor() //If '-executor' flag is specified, a local executor is spawned
 	}
 	fmt.Println("Node initialized.")
 	http.HandleFunc("/acquireNodeIp", acquireIp)
@@ -66,10 +66,18 @@ func increment(w http.ResponseWriter, r *http.Request) {
 
 func migrate(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("A migration on the remote node has been requested.")
-	//Checkpoint the container
-	err := exec.Command("podman", "container", "checkpoint", "executor", "-e", checkpointArchiveName, "--tcp-established").Run()
+
+	// First of all, contact the container (port 8081) to send the fallback node address
+	requestJSON, _ := json.Marshal(otherNodeIP)
+	response, err := http.Post("http://"+containerAddress+":8081", "application/json", bytes.NewBuffer(requestJSON))
+	errorRespCheck(err, "Failed to send request", response.Status)
+
+	// Checkpoint the container
+	err = exec.Command("podman", "container", "checkpoint", "executor", "-e", checkpointArchiveName, "--tcp-established").Run()
 	errorCheck(err)
 	fmt.Println("\t...Container checkpointed.")
+
+	// Prepare a request body to send the checkpoint .tar file
 	fileDir, _ := os.Getwd() // Get current path
 	filePath := path.Join(fileDir, checkpointArchiveName)
 
@@ -81,7 +89,8 @@ func migrate(w http.ResponseWriter, r *http.Request) {
 	part, _ := writer.CreateFormFile(checkpointArchiveName, filepath.Base(file.Name()))
 	io.Copy(part, file) // Copy file bytes in a multipart form data file
 	writer.Close()
-	// Send the file
+
+	// Send the checkpoint .tar file to the remote node
 	r, _ = http.NewRequest("POST", "http://"+otherNodeIP+":8080/restore", body)
 	r.Header.Add("Content-Type", writer.FormDataContentType())
 	client := &http.Client{}
@@ -91,6 +100,8 @@ func migrate(w http.ResponseWriter, r *http.Request) {
 
 func completeMigration(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("A checkpoint file has been received.")
+
+	// Receive the checkpoint .tar file
 	r.ParseMultipartForm(int64(checkpointArchiveSizeLimit))
 	file, handler, err := r.FormFile(checkpointArchiveName) // Get the form file
 	errorCheck(err)
@@ -106,14 +117,14 @@ func completeMigration(w http.ResponseWriter, r *http.Request) {
 	tempFile.Write(fileBytes)            // Write the byte array in the temporary file
 	fmt.Printf("Checkpoint file %s successfully received.\n", tempFile.Name())
 
-	restoreExecution(tempFile.Name()) // Restore the execution
-
+	// Restore the execution
+	restoreExecution(tempFile.Name())
 }
 
 func restoreExecution(fileName string) {
 	err := exec.Command("podman", "container", "restore", "-i", fileName, "--tcp-established").Run()
 	errorCheck(err)
-	fmt.Println("Container restarted. Migration completed.")
+	fmt.Println("Container restored. Migration completed.")
 }
 
 func receiveResult(w http.ResponseWriter, r *http.Request) {
@@ -129,8 +140,8 @@ func getResult(w http.ResponseWriter, r *http.Request) {
 }
 
 func submitAsyncRequest() {
-	// Send fallback ip in case of migration, and the number to actually increment
-	requestJSON, _ := json.Marshal(otherNodeIP + "|" + requestNumber)
+	// Send the number to actually increment
+	requestJSON, _ := json.Marshal(requestNumber)
 	response, err := http.Post("http://"+containerAddress+":8080", "application/json", bytes.NewBuffer(requestJSON))
 	errorRespCheck(err, "Failed to send request", response.Status)
 	result, _ := ioutil.ReadAll(response.Body)
